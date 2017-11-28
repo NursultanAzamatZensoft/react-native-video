@@ -109,6 +109,8 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
     private boolean isCompleted = false;
     private boolean mUseNativeControls = false;
 
+    private int lastPosition;
+
     public ReactVideoView(ThemedReactContext themedReactContext) {
         super(themedReactContext);
 
@@ -123,7 +125,7 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
             @Override
             public void run() {
 
-                if (mMediaPlayerValid && !isCompleted &&!mPaused) {
+                if (mMediaPlayerValid && !isCompleted && !mPaused) {
                     WritableMap event = Arguments.createMap();
                     event.putDouble(EVENT_PROP_CURRENT_TIME, mMediaPlayer.getCurrentPosition() / 1000.0);
                     event.putDouble(EVENT_PROP_PLAYABLE_DURATION, mVideoBufferedDuration / 1000.0); //TODO:mBufferUpdateRunnable
@@ -192,17 +194,17 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
     }
 
     public void cleanupMediaPlayerResources() {
-        if ( mediaController != null ) {
+        if (mediaController != null) {
             mediaController.hide();
         }
-        if ( mMediaPlayer != null ) {
+        if (mMediaPlayer != null) {
             mMediaPlayerValid = false;
             release();
         }
     }
 
     public void setSrc(final String uriString, final String type, final boolean isNetwork, final boolean isAsset) {
-        setSrc(uriString,type,isNetwork,isAsset,0,0);
+        setSrc(uriString, type, isNetwork, isAsset, 0, 0);
     }
 
     public void setSrc(final String uriString, final String type, final boolean isNetwork, final boolean isAsset, final int expansionMainVersion, final int expansionPatchVersion) {
@@ -248,35 +250,34 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
                     setDataSource(uriString);
                 }
             } else {
-                ZipResourceFile expansionFile= null;
-                AssetFileDescriptor fd= null;
-                if(mMainVer>0) {
+                ZipResourceFile expansionFile = null;
+                AssetFileDescriptor fd = null;
+                if (mMainVer > 0) {
                     try {
                         expansionFile = APKExpansionSupport.getAPKExpansionZipFile(mThemedReactContext, mMainVer, mPatchVer);
-                        fd = expansionFile.getAssetFileDescriptor(uriString.replace(".mp4","") + ".mp4");
+                        fd = expansionFile.getAssetFileDescriptor(uriString.replace(".mp4", "") + ".mp4");
                     } catch (IOException e) {
                         e.printStackTrace();
                     } catch (NullPointerException e) {
                         e.printStackTrace();
                     }
                 }
-                if(fd==null) {
+                if (fd == null) {
                     int identifier = mThemedReactContext.getResources().getIdentifier(
-                        uriString,
-                        "drawable",
-                        mThemedReactContext.getPackageName()
+                            uriString,
+                            "drawable",
+                            mThemedReactContext.getPackageName()
                     );
                     if (identifier == 0) {
                         identifier = mThemedReactContext.getResources().getIdentifier(
-                            uriString,
-                            "raw",
-                            mThemedReactContext.getPackageName()
+                                uriString,
+                                "raw",
+                                mThemedReactContext.getPackageName()
                         );
                     }
                     setRawData(identifier);
-                }
-                else {
-                    setDataSource(fd.getFileDescriptor(), fd.getStartOffset(),fd.getLength());
+                } else {
+                    setDataSource(fd.getFileDescriptor(), fd.getStartOffset(), fd.getLength());
                 }
             }
         } catch (Exception e) {
@@ -288,9 +289,9 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
         src.putString(ReactVideoViewManager.PROP_SRC_URI, uriString);
         src.putString(ReactVideoViewManager.PROP_SRC_TYPE, type);
         src.putBoolean(ReactVideoViewManager.PROP_SRC_IS_NETWORK, isNetwork);
-        if(mMainVer>0) {
+        if (mMainVer > 0) {
             src.putInt(ReactVideoViewManager.PROP_SRC_MAINVER, mMainVer);
-            if(mPatchVer>0) {
+            if (mPatchVer > 0) {
                 src.putInt(ReactVideoViewManager.PROP_SRC_PATCHVER, mPatchVer);
             }
         }
@@ -299,9 +300,9 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
         mEventEmitter.receiveEvent(getId(), Events.EVENT_LOAD_START.toString(), event);
 
         try {
-          prepareAsync(this);
+            prepareAsync(this);
         } catch (Exception e) {
-          e.printStackTrace();
+            e.printStackTrace();
         }
     }
 
@@ -327,7 +328,7 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
 
         mPaused = paused;
 
-        if ( !mActiveStatePauseStatusInitialized ) {
+        if (!mActiveStatePauseStatusInitialized) {
             mActiveStatePauseStatus = mPaused;
             mActiveStatePauseStatusInitialized = true;
         }
@@ -444,6 +445,7 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
                 }
             });
         }
+
     }
 
     @Override
@@ -541,11 +543,10 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
 
         super.onAttachedToWindow();
 
-        if(mMainVer>0) {
-            setSrc(mSrcUriString, mSrcType, mSrcIsNetwork,mSrcIsAsset,mMainVer,mPatchVer);
-        }
-        else {
-            setSrc(mSrcUriString, mSrcType, mSrcIsNetwork,mSrcIsAsset);
+        if (mMainVer > 0) {
+            setSrc(mSrcUriString, mSrcType, mSrcIsNetwork, mSrcIsAsset, mMainVer, mPatchVer);
+        } else {
+            setSrc(mSrcUriString, mSrcType, mSrcIsNetwork, mSrcIsAsset);
         }
 
     }
@@ -554,7 +555,8 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
     public void onHostPause() {
         if (mMediaPlayer != null && !mPlayInBackground) {
             mActiveStatePauseStatus = mPaused;
-
+            lastPosition = mMediaPlayer.getCurrentPosition();
+            Log.e("VIDEOVIEW", "ONHOSTPAUSE " + lastPosition);
             // Pause the video in background
             setPausedModifier(true);
         }
@@ -567,6 +569,8 @@ public class ReactVideoView extends ScalableVideoView implements MediaPlayer.OnP
                 @Override
                 public void run() {
                     // Restore original state
+                    Log.e("VIDEOVIEW", "ONHOSTRESUME " + lastPosition);
+                    seekTo(lastPosition);
                     setPausedModifier(mActiveStatePauseStatus);
                 }
             });
